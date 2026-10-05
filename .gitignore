@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+db.sqlite3
+
+# Django
+backend/.env
+backend/media/
+backend/staticfiles/
+
+# Node / Next.js
+node_modules/
+.next/
+frontend/.env.local
+frontend/.env
+
+# Root compose env (real secrets — never commit)
+.env
+
+# Cloudflare / certs
+nginx/certbot/conf/
+nginx/certbot/www/
+
+# OS / editor
+.DS_Store
+*.swp

@@ -1,0 +1,12 @@
+Hi {{ post.workspace.owner.first_name|default:"there" }},
+
+Your {{ post.get_type_display|lower }} is scheduled to go out today:
+
+"{{ post.title }}"
+
+{{ post.text|truncatewords:40 }}
+
+Open it in Postroom to copy the final text and post it to LinkedIn:
+{{ link }}
+
+— Postroom

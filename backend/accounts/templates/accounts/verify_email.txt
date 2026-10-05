@@ -1,0 +1,9 @@
+Hi {{ user.first_name|default:"there" }},
+
+Confirm your email to finish setting up Postroom:
+
+{{ link }}
+
+If you didn't create a Postroom account, you can ignore this email.
+
+— Postroom
