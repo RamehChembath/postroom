@@ -31,6 +31,13 @@ services:
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_started }
+    # Bound to localhost only (not the public internet) at a port free on this
+    # box — your existing sites already occupy 8000-8002 and 8080. An existing
+    # system-level Nginx (outside Docker) proxies postroom.in/api.postroom.in
+    # to these, the same way it already proxies your other sites to their own
+    # ports — see nginx/postroom-system-nginx.conf.
+    ports:
+      - "127.0.0.1:8003:8000"
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles
@@ -75,7 +82,14 @@ services:
     environment:
       NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE}
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+    ports:
+      - "127.0.0.1:8004:3000"
 
+  # The services below (nginx, certbot) are for a server with NO other sites on
+  # it — they claim ports 80/443 directly. If Postroom shares a box with other
+  # sites behind an existing Nginx, don't start these two; use the backend/
+  # frontend ports above with your existing Nginx instead (see
+  # nginx/postroom-system-nginx.conf for a ready-made config in that style).
   nginx:
     image: nginx:alpine
     restart: unless-stopped
