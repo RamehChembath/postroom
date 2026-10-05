@@ -40,7 +40,7 @@ services:
       - "127.0.0.1:8003:8000"
     volumes:
       - media_data:/app/media
-      - static_data:/app/staticfiles
+      - ./static_data_host:/app/staticfiles
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
@@ -100,7 +100,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/certbot/www:/var/www/certbot
       - ./nginx/certbot/conf:/etc/letsencrypt
-      - static_data:/static
+      - ./static_data_host:/static
       - media_data:/media
     depends_on:
       - backend
@@ -118,4 +118,3 @@ volumes:
   postgres_data:
   redis_data:
   media_data:
-  static_data:
