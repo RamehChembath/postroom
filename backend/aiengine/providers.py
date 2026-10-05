@@ -21,6 +21,20 @@ class AIError(RuntimeError):
     """Raised for any provider/parsing failure, with a message safe to show the user."""
 
 
+def get_anthropic_key() -> str:
+    """The admin-set key (Django admin -> AI provider settings) takes priority
+    over .env when set, so keys can be rotated without SSH/redeploy."""
+    from platformconfig.models import AISettings
+    db_key = AISettings.load().anthropic_api_key
+    return db_key or settings.ANTHROPIC_API_KEY
+
+
+def get_openai_key() -> str:
+    from platformconfig.models import AISettings
+    db_key = AISettings.load().openai_api_key
+    return db_key or settings.OPENAI_API_KEY
+
+
 def _extract_json(text: str) -> dict:
     cleaned = re.sub(r"```json|```", "", text).strip()
     start, end = cleaned.find("{"), cleaned.rfind("}")
@@ -32,11 +46,12 @@ def _extract_json(text: str) -> dict:
 def claude_json(system: str, user: str, max_tokens: int = 2000) -> tuple[dict, float]:
     """Returns (parsed_json, actual_cost_usd) — cost computed from the real
     input/output token counts Anthropic reports back, not an estimate."""
-    if not settings.ANTHROPIC_API_KEY:
+    api_key = get_anthropic_key()
+    if not api_key:
         raise AIError("No Anthropic API key configured on the server.")
     try:
         from anthropic import Anthropic
-        client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        client = Anthropic(api_key=api_key)
         resp = client.messages.create(
             model=settings.CLAUDE_MODEL,
             max_tokens=max_tokens,
@@ -57,11 +72,12 @@ def claude_json(system: str, user: str, max_tokens: int = 2000) -> tuple[dict, f
 
 
 def openai_json(system: str, user: str, max_tokens: int = 2000) -> tuple[dict, float]:
-    if not settings.OPENAI_API_KEY:
+    api_key = get_openai_key()
+    if not api_key:
         raise AIError("No OpenAI API key configured on the server.")
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        client = OpenAI(api_key=api_key)
         resp = client.chat.completions.create(
             model=settings.OPENAI_TEXT_MODEL,
             max_tokens=max_tokens,
@@ -92,12 +108,13 @@ def text_json(system: str, user: str, max_tokens: int = 2000) -> tuple[dict, flo
 def generate_image_bytes(prompt: str, size: str = "1024x1024") -> tuple[bytes, float]:
     """Generates an image with OpenAI's image model. Returns (png_bytes, cost_usd) —
     image cost is a flat per-image estimate, not usage-metered the way text is."""
-    if not settings.OPENAI_API_KEY:
+    api_key = get_openai_key()
+    if not api_key:
         raise AIError("No OpenAI API key configured on the server.")
     try:
         import base64
         from openai import OpenAI
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        client = OpenAI(api_key=api_key)
         resp = client.images.generate(model=settings.OPENAI_IMAGE_MODEL, prompt=prompt, size=size, n=1)
         b64 = resp.data[0].b64_json
         return base64.b64decode(b64), OPENAI_IMAGE_COST_FLAT

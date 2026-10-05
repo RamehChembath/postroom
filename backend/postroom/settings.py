@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "engagement",
     "notifications",
     "billing",
+    "platformconfig",
 ]
 
 MIDDLEWARE = [

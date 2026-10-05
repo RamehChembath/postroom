@@ -68,6 +68,14 @@ See `DEPLOY.md`.
 - **Rate limiting**: auth endpoints throttled to 20/hour (brute-force protection); every endpoint additionally capped at 300/min per user as a general ceiling.
 - **Terms of Service & Privacy Policy pages** (`/terms`, `/privacy`) — these are templates, not legal advice; replace the bracketed placeholders and have a lawyer review before launch.
 
+## Updating AI keys without SSH
+Django admin → **AI provider settings** lets you set (or rotate) the Anthropic
+and OpenAI API keys from a web page — no server access, no redeploy, takes
+effect immediately. Leave a field blank there to fall back to whatever's in
+`backend/.env`; fill it in to override. This is the one setting I specifically
+pulled out of `.env` and into the database for exactly this reason — it's the
+value most likely to need changing without a code change.
+
 ## The admin panel
 Django admin at `/admin/` — a separate URL, gated by `is_staff`/`is_superuser` on
 the *same* user table the app uses (not a separate account system). Nobody gets
