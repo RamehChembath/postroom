@@ -27,3 +27,4 @@ nginx/certbot/www/
 # OS / editor
 .DS_Store
 *.swp
+backend/.env.local
