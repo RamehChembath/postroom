@@ -1,0 +1,102 @@
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # lets you trigger a redeploy manually from the Actions tab
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Django system check + migration check
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ci-only-secret
+          DJANGO_DEBUG: "true"
+          USE_SQLITE: "true"
+          DJANGO_ALLOWED_HOSTS: testserver,localhost
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+
+  build-and-push:
+    needs: test-backend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      owner_lower: ${{ steps.vars.outputs.owner_lower }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase the image owner (Docker requires lowercase image names)
+        id: vars
+        run: echo "owner_lower=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner_lower }}/postroom-backend:latest
+            ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner_lower }}/postroom-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_BASE=${{ vars.NEXT_PUBLIC_API_BASE }}
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner_lower }}/postroom-frontend:latest
+            ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner_lower }}/postroom-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into the VPS and redeploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          # GHCR_TAG is set inline (this deploy's commit SHA) rather than written
+          # into .env, which only holds things that don't change between deploys
+          # (GHCR_OWNER, DB creds, etc. — see DEPLOY.md). The registry login
+          # itself is a one-time setup step on the VPS, not repeated here.
+          script: |
+            set -e
+            cd /opt/postroom
+            git pull --ff-only
+            export GHCR_TAG=${{ github.sha }}
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
+            docker image prune -f

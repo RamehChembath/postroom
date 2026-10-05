@@ -1,0 +1,113 @@
+# Production deploy: pulls pre-built images from GitHub Container Registry
+# (built by .github/workflows/deploy.yml on every push to main) instead of
+# building on the VPS itself. A standalone file rather than a merge-override
+# of docker-compose.yml, so it works with any Docker Compose version.
+#
+#   docker login ghcr.io -u <your-github-username>        # once, see DEPLOY.md
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# GHCR_OWNER / GHCR_TAG come from the root .env (see .env.example).
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  backend:
+    image: ghcr.io/${GHCR_OWNER}/postroom-backend:${GHCR_TAG:-latest}
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      POSTGRES_HOST: db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn postroom.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+
+  celery_worker:
+    image: ghcr.io/${GHCR_OWNER}/postroom-backend:${GHCR_TAG:-latest}
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      POSTGRES_HOST: db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+    volumes:
+      - media_data:/app/media
+    command: celery -A postroom worker --loglevel=info
+
+  celery_beat:
+    image: ghcr.io/${GHCR_OWNER}/postroom-backend:${GHCR_TAG:-latest}
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      POSTGRES_HOST: db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+    command: celery -A postroom beat --loglevel=info
+
+  frontend:
+    image: ghcr.io/${GHCR_OWNER}/postroom-frontend:${GHCR_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE}
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/certbot/www:/var/www/certbot
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - static_data:/static
+      - media_data:/media
+    depends_on:
+      - backend
+      - frontend
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./nginx/certbot/www:/var/www/certbot
+      - ./nginx/certbot/conf:/etc/letsencrypt
+    entrypoint: >
+      sh -c "trap exit TERM; while :; do certbot renew; sleep 12h; done"
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:
+  static_data:
