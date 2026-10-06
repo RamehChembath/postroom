@@ -76,6 +76,14 @@ effect immediately. Leave a field blank there to fall back to whatever's in
 pulled out of `.env` and into the database for exactly this reason — it's the
 value most likely to need changing without a code change.
 
+## The platform admin dashboard
+A real, custom-built ops dashboard at `/platform` in the main app (Next.js, not Django templates) — staff-only, gated by `is_staff` on login. This is separate from Django's `/admin/` (below), which is still there for raw data management.
+- **Dashboard** (`/platform`) — condensed 30-day overview
+- **Tenants** (`/platform/tenants`) — every account, plan, status, avatar count
+- **Costs & Billing** (`/platform/costs`) — the real one: a daily spend chart, cost by purpose, cost by model, per-tenant margin (fees billed − AI cost, converted via `USD_TO_INR` in `platform_admin/views.py` — update that to your real rate), and the 10 most expensive individual AI calls. Every number here comes from `billing.AIUsageEvent`, a row logged on every single Claude/OpenAI call with its purpose, model, and exact cost — not an estimate.
+- **Settings** (`/platform/settings`) — AI Provider (same as Django admin's version, just nicer) and **Plan Builder**: edit what Free/Base/Pro each provide (price, avatar limits, AI budget per avatar, Stripe price IDs) and it takes effect for every user on that plan immediately — no deploy, no restart. Tested directly: patched a plan's budget mid-test and confirmed a live user could immediately spend more.
+- Email/Payments/Branding tabs are placeholders, honestly labeled "not wired up yet" rather than faked.
+
 ## The admin panel
 Django admin at `/admin/` — a separate URL, gated by `is_staff`/`is_superuser` on
 the *same* user table the app uses (not a separate account system). Nobody gets
