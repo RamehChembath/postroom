@@ -48,7 +48,7 @@ class MeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "email", "first_name", "email_verified"]
+        fields = ["id", "email", "first_name", "email_verified", "is_staff"]
 
     def get_email_verified(self, user):
         profile = getattr(user, "account_profile", None)

@@ -10,6 +10,8 @@ urlpatterns = [
     path("api/content/", include("content.urls")),
     path("api/engagement/", include("engagement.urls")),
     path("api/billing/", include("billing.urls")),
+    path("api/platform/", include("platform_admin.urls")),
+    path("api/platform/", include("platformconfig.urls")),
 ]
 
 if settings.DEBUG:

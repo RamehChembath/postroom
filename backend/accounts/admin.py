@@ -1,17 +1,18 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.models import User
+from unfold.admin import ModelAdmin, StackedInline
 from billing.models import Subscription
 from .models import AccountProfile
 
 
-class AccountProfileInline(admin.StackedInline):
+class AccountProfileInline(StackedInline):
     model = AccountProfile
     can_delete = False
     readonly_fields = ["created_at", "verification_sent_at"]
 
 
-class SubscriptionInline(admin.StackedInline):
+class SubscriptionInline(StackedInline):
     model = Subscription
     can_delete = False
     readonly_fields = ["stripe_customer_id", "stripe_subscription_id", "created_at", "updated_at"]
@@ -22,7 +23,7 @@ admin.site.unregister(User)
 
 
 @admin.register(User)
-class UserAdmin(DjangoUserAdmin):
+class UserAdmin(ModelAdmin, DjangoUserAdmin):
     inlines = [AccountProfileInline, SubscriptionInline]
     list_display = ["email", "first_name", "is_verified", "plan_name", "workspace_count", "date_joined", "is_active"]
     list_filter = ["is_active", "is_staff", "date_joined"]
@@ -43,4 +44,7 @@ class UserAdmin(DjangoUserAdmin):
         return obj.workspaces.count()
 
 
-admin.site.register(AccountProfile)
+@admin.register(AccountProfile)
+class AccountProfileAdmin(ModelAdmin):
+    list_display = ["user", "email_verified", "created_at"]
+    list_filter = ["email_verified"]

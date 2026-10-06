@@ -29,6 +29,8 @@ CSRF_TRUSTED_ORIGINS = [o.strip() for o in env("CSRF_TRUSTED_ORIGINS", "").split
 COOKIE_DOMAIN = env("COOKIE_DOMAIN", "")  # e.g. ".postroom.in" in prod so api.* and the app share the cookie; blank in dev
 
 INSTALLED_APPS = [
+    "unfold",
+    "unfold.contrib.filters",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -46,6 +48,7 @@ INSTALLED_APPS = [
     "notifications",
     "billing",
     "platformconfig",
+    "platform_admin",
 ]
 
 MIDDLEWARE = [
@@ -177,6 +180,48 @@ STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_PRICE_BASE = env("STRIPE_PRICE_BASE", "")
 STRIPE_PRICE_PRO = env("STRIPE_PRICE_PRO", "")
 STRIPE_PRICE_PRO_EXTRA_AVATAR = env("STRIPE_PRICE_PRO_EXTRA_AVATAR", "")
+
+# ---- Admin theme (django-unfold) ----
+UNFOLD = {
+    "SITE_TITLE": "Postroom Admin",
+    "SITE_HEADER": "Postroom",
+    "SITE_SUBHEADER": "Platform administration",
+    "SITE_SYMBOL": "forum",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    "COLORS": {
+        "primary": {
+            "50": "239 246 255", "100": "219 234 254", "200": "191 219 254",
+            "300": "147 197 253", "400": "96 165 250", "500": "10 102 194",
+            "600": "9 92 175", "700": "7 77 146", "800": "6 61 117", "900": "5 49 94",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": True,
+        "navigation": [
+            {
+                "title": "Platform",
+                "items": [
+                    {"title": "Users", "icon": "people", "link": "/admin/auth/user/"},
+                    {"title": "Avatars (workspaces)", "icon": "badge", "link": "/admin/brand/workspace/"},
+                    {"title": "Subscriptions", "icon": "credit_card", "link": "/admin/billing/subscription/"},
+                    {"title": "AI usage", "icon": "bolt", "link": "/admin/billing/workspaceusage/"},
+                    {"title": "AI provider settings", "icon": "settings", "link": "/admin/platformconfig/aisettings/"},
+                ],
+            },
+            {
+                "title": "Content",
+                "items": [
+                    {"title": "Posts", "icon": "article", "link": "/admin/content/post/"},
+                    {"title": "Content plans", "icon": "calendar_month", "link": "/admin/content/contentplan/"},
+                    {"title": "Comments", "icon": "chat_bubble", "link": "/admin/engagement/comment/"},
+                    {"title": "Goals", "icon": "flag", "link": "/admin/brand/goal/"},
+                ],
+            },
+        ],
+    },
+}
 
 LOGGING = {
     "version": 1,

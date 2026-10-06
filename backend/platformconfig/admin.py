@@ -1,11 +1,12 @@
 from django.contrib import admin
 from django.shortcuts import redirect
 from django.urls import reverse
+from unfold.admin import ModelAdmin
 from .models import AISettings
 
 
 @admin.register(AISettings)
-class AISettingsAdmin(admin.ModelAdmin):
+class AISettingsAdmin(ModelAdmin):
     """Singleton settings page: always edits the one row, never shows an 'add
     another' option, never allows deleting it."""
     fields = ["anthropic_api_key", "openai_api_key", "updated_at"]

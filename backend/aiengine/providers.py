@@ -35,6 +35,12 @@ def get_openai_key() -> str:
     return db_key or settings.OPENAI_API_KEY
 
 
+def get_claude_model() -> str:
+    from platformconfig.models import AISettings
+    db_model = AISettings.load().default_claude_model
+    return db_model or settings.CLAUDE_MODEL
+
+
 def _extract_json(text: str) -> dict:
     cleaned = re.sub(r"```json|```", "", text).strip()
     start, end = cleaned.find("{"), cleaned.rfind("}")
@@ -53,7 +59,7 @@ def claude_json(system: str, user: str, max_tokens: int = 2000) -> tuple[dict, f
         from anthropic import Anthropic
         client = Anthropic(api_key=api_key)
         resp = client.messages.create(
-            model=settings.CLAUDE_MODEL,
+            model=get_claude_model(),
             max_tokens=max_tokens,
             system=system,
             messages=[{"role": "user", "content": user}],

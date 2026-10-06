@@ -9,6 +9,7 @@ class AISettings(models.Model):
     blank here to fall back to whatever is in .env."""
     anthropic_api_key = models.CharField(max_length=200, blank=True, help_text="Overrides ANTHROPIC_API_KEY in .env when set. Leave blank to use the .env value.")
     openai_api_key = models.CharField(max_length=200, blank=True, help_text="Overrides OPENAI_API_KEY in .env when set. Leave blank to use the .env value.")
+    default_claude_model = models.CharField(max_length=80, blank=True, help_text="Overrides CLAUDE_MODEL in .env when set.")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

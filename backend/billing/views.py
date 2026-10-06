@@ -6,7 +6,7 @@ from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .plans import PLANS
+from .plans import get_plans
 from .usage import get_or_create_subscription, account_usage_summary, pending_extra_avatar_cost
 from . import stripe_client, webhooks
 
@@ -18,7 +18,7 @@ class PlansView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        return Response({k: {kk: vv for kk, vv in v.items() if kk != "stripe_price_id"} for k, v in PLANS.items()})
+        return Response({k: {kk: vv for kk, vv in v.items() if kk != "stripe_price_id"} for k, v in get_plans().items()})
 
 
 class UsageSummaryView(APIView):
@@ -33,7 +33,7 @@ class CreateCheckoutSessionView(APIView):
         plan_key = request.data.get("plan")
         if plan_key not in ("base", "pro"):
             return Response({"detail": "plan must be 'base' or 'pro'."}, status=status.HTTP_400_BAD_REQUEST)
-        price_id = PLANS[plan_key]["stripe_price_id"]
+        price_id = get_plans()[plan_key]["stripe_price_id"]
         if not price_id:
             return Response({"detail": "Billing isn't configured on this server yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         sub = get_or_create_subscription(request.user)

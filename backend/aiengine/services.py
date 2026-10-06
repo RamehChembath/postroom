@@ -10,7 +10,14 @@ from django.utils import timezone
 from django.core.files.base import ContentFile
 
 from . import prompts, providers
+from django.conf import settings
 from billing.usage import check_ai_allowed, record_ai_cost
+
+
+def _text_model():
+    if (settings.TEXT_PROVIDER or 'claude').lower() == 'openai':
+        return settings.OPENAI_TEXT_MODEL
+    return providers.get_claude_model()
 
 
 # ---------- Onboarding / brand ----------
@@ -25,7 +32,7 @@ def summarize_website(brand):
     check_ai_allowed(workspace)
     system, user = prompts.website_summary_prompt(brand.company_website, raw)
     out, cost = providers.text_json(system, user, max_tokens=400)
-    record_ai_cost(workspace, cost)
+    record_ai_cost(workspace, cost, purpose="website_summary", model=_text_model())
     brand.website_summary = out.get("summary", "")
     brand.save(update_fields=["website_summary"])
 
@@ -36,7 +43,7 @@ def generate_onboarding_preview(brand):
     sample_posts = list(workspace.past_posts.order_by("-posted_on").values_list("text", flat=True)[:5])
     system, user = prompts.onboarding_preview_prompt(brand, sample_posts)
     out, cost = providers.text_json(system, user, max_tokens=700)
-    record_ai_cost(workspace, cost)
+    record_ai_cost(workspace, cost, purpose="onboarding_preview", model=_text_model())
     brand.tone_sample_post = out.get("sample_post", "")
     brand.save(update_fields=["tone_sample_post"])
     return out
@@ -50,7 +57,7 @@ def analyze_tone(workspace):
     check_ai_allowed(workspace)
     system, user_msg = prompts.tone_analysis_prompt(posted)
     out, cost = providers.text_json(system, user_msg, max_tokens=900)
-    record_ai_cost(workspace, cost)
+    record_ai_cost(workspace, cost, purpose="tone_analysis", model=_text_model())
     brand = workspace.brand_profile
     brand.tone_summary = out.get("summary", "")
     brand.tone_traits = out.get("traits", [])
@@ -68,7 +75,7 @@ def suggest_topics(workspace):
     top = list(Post.objects.filter(workspace=workspace, status="posted").order_by("-likes")[:3])
     system, user_msg = prompts.topic_suggestion_prompt(brand, top)
     out, cost = providers.text_json(system, user_msg, max_tokens=900)
-    record_ai_cost(workspace, cost)
+    record_ai_cost(workspace, cost, purpose="topic_suggestions", model=_text_model())
     return out.get("topics", [])
 
 
@@ -81,7 +88,7 @@ def generate_calendar(plan):
     blocked = list(workspace.blocked_dates.filter(date__range=(plan.start_date, plan.end_date)).values_list("date", flat=True))
     system, user_msg = prompts.calendar_prompt(brand, plan, [d.isoformat() for d in blocked])
     out, cost = providers.text_json(system, user_msg, max_tokens=2000)
-    record_ai_cost(workspace, cost)
+    record_ai_cost(workspace, cost, purpose="calendar_generation", model=_text_model())
 
     from content.models import PlannedItem
     plan.items.all().delete()
@@ -111,7 +118,7 @@ def generate_draft_for_item(item):
     check_ai_allowed(workspace)
     system, user_msg = prompts.draft_prompt(brand, item.item_type, item.title, item.angle)
     out, cost = providers.text_json(system, user_msg, max_tokens=4000)
-    record_ai_cost(workspace, cost)
+    record_ai_cost(workspace, cost, purpose="draft", model=_text_model())
 
     post, _ = Post.objects.update_or_create(
         planned_item=item,
@@ -140,7 +147,7 @@ def predict_potential(post):
     check_ai_allowed(workspace)
     system, user_msg = prompts.potential_prompt(brand, post)
     out, cost = providers.text_json(system, user_msg, max_tokens=500)
-    record_ai_cost(workspace, cost)
+    record_ai_cost(workspace, cost, purpose="predict_potential", model=_text_model())
     post.predicted_score = max(1, min(10, round(out.get("score", 5))))
     post.predicted_reason = out.get("reason", "")
     post.predicted_tip = out.get("tip", "")
@@ -154,7 +161,7 @@ def suggest_reply(comment):
     check_ai_allowed(workspace)
     system, user_msg = prompts.reply_prompt(brand, comment.post, comment)
     out, cost = providers.text_json(system, user_msg, max_tokens=400)
-    record_ai_cost(workspace, cost)
+    record_ai_cost(workspace, cost, purpose="reply_suggestion", model=_text_model())
     comment.reply = out.get("reply", "")
     comment.reply_generated_at = timezone.now()
     comment.save(update_fields=["reply", "reply_generated_at"])
@@ -167,7 +174,7 @@ def suggest_next_step(post):
     check_ai_allowed(workspace)
     system, user_msg = prompts.next_step_prompt(brand, post, list(post.comments.all()))
     out, cost = providers.text_json(system, user_msg, max_tokens=500)
-    record_ai_cost(workspace, cost)
+    record_ai_cost(workspace, cost, purpose="next_step", model=_text_model())
     post.next_step_suggestion = out.get("suggestion", "")
     post.next_step_at = timezone.now()
     post.save(update_fields=["next_step_suggestion", "next_step_at"])
@@ -179,7 +186,7 @@ def generate_post_image(post, brief: str):
     check_ai_allowed(workspace)
     style_note = " Clean, professional, editorial style suited to LinkedIn; no embedded text, no logos, no real identifiable people."
     image_bytes, cost = providers.generate_image_bytes(brief + style_note)
-    record_ai_cost(workspace, cost)
+    record_ai_cost(workspace, cost, purpose="image_generation", model=settings.OPENAI_IMAGE_MODEL)
     img = post.images.create(prompt=brief, source="generated")
     img.image.save(f"post_{post.id}_{img.id}.png", ContentFile(image_bytes), save=True)
     return img
@@ -199,5 +206,5 @@ def analyze_performance(workspace):
     check_ai_allowed(workspace)
     system, user_msg = prompts.performance_analysis_prompt(brand, summary, goal_summary)
     out, cost = providers.text_json(system, user_msg, max_tokens=700)
-    record_ai_cost(workspace, cost)
+    record_ai_cost(workspace, cost, purpose="performance_analysis", model=_text_model())
     return out

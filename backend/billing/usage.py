@@ -10,8 +10,8 @@ Usage enforcement, now per-workspace and dollar-denominated:
 from decimal import Decimal
 from django.db import transaction
 
-from .models import Subscription, WorkspaceUsage
-from .plans import PLANS
+from .models import Subscription, WorkspaceUsage, AIUsageEvent
+from .plans import get_plans
 
 
 class UsageLimitExceeded(Exception):
@@ -32,7 +32,7 @@ def get_or_create_current_usage(workspace):
 
 def _plan_for_workspace(workspace):
     sub = get_or_create_subscription(workspace.owner)
-    return sub, PLANS[sub.plan]
+    return sub, get_plans()[sub.plan]
 
 
 def check_ai_allowed(workspace):
@@ -53,8 +53,11 @@ def check_ai_allowed(workspace):
 
 
 @transaction.atomic
-def record_ai_cost(workspace, cost_usd):
-    """Call after a successful Claude/OpenAI response with its real computed cost."""
+def record_ai_cost(workspace, cost_usd, purpose="unknown", model=""):
+    """Call after a successful Claude/OpenAI response with its real computed cost.
+    Logs an individual AIUsageEvent (for the cost-by-purpose/model/top-calls
+    breakdowns) AND rolls it into the monthly WorkspaceUsage total (for the
+    plan-budget check in check_ai_allowed)."""
     if not cost_usd:
         return
     usage = WorkspaceUsage.objects.select_for_update().get_or_create(
@@ -62,6 +65,7 @@ def record_ai_cost(workspace, cost_usd):
     )[0]
     usage.cost_usd += Decimal(str(cost_usd))
     usage.save(update_fields=["cost_usd"])
+    AIUsageEvent.objects.create(workspace=workspace, purpose=purpose, model=model, cost_usd=Decimal(str(cost_usd)))
 
 
 def workspace_usage_summary(workspace):
@@ -79,7 +83,7 @@ def workspace_usage_summary(workspace):
 def account_usage_summary(user):
     """Everything the Billing page needs: plan, status, per-workspace AI spend, avatar limits."""
     sub = get_or_create_subscription(user)
-    plan = PLANS[sub.plan]
+    plan = get_plans()[sub.plan]
     from brand.models import Workspace
     workspaces = Workspace.objects.filter(owner=user)
     return {
@@ -97,7 +101,7 @@ def check_workspace_limit(user):
     """Call before creating a new workspace. Raises UsageLimitExceeded at the plan's cap."""
     from brand.models import Workspace
     sub = get_or_create_subscription(user)
-    plan = PLANS[sub.plan]
+    plan = get_plans()[sub.plan]
     count = Workspace.objects.filter(owner=user).count()
     if count >= plan["max_workspaces"]:
         raise UsageLimitExceeded(
@@ -114,7 +118,7 @@ def pending_extra_avatar_cost(user):
     None if it's still within the plan's included count."""
     from brand.models import Workspace
     sub = get_or_create_subscription(user)
-    plan = PLANS[sub.plan]
+    plan = get_plans()[sub.plan]
     count = Workspace.objects.filter(owner=user).count()
     if count < plan["included_workspaces"]:
         return None

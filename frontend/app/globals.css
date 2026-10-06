@@ -105,3 +105,64 @@ textarea { resize: vertical; }
 /* ---------- Verify banner ---------- */
 .verify-banner { background: var(--accent-soft); color: var(--accent); padding: 10px 24px; font-size: 0.86rem; text-align: center; }
 .verify-banner button { background: none; border: 0; color: var(--accent); font-weight: 650; text-decoration: underline; padding: 0; cursor: pointer; }
+
+/* ---------- Platform admin (staff dashboard) ---------- */
+.pf-shell { display: flex; min-height: 100dvh; background: #F6F7F9; color: #15181E; }
+.pf-sidebar { width: 240px; flex: none; background: #fff; border-right: 1px solid #E7E9EC; display: flex; flex-direction: column; padding: 18px 12px; position: fixed; inset: 0 auto 0 0; }
+.pf-brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 22px; }
+.pf-logo { width: 34px; height: 34px; border-radius: 9px; background: #15181E; color: #fff; display: grid; place-items: center; font-weight: 800; font-family: Georgia, serif; }
+.pf-brand-name { font-weight: 700; font-size: 1rem; }
+.pf-brand-sub { font-size: 0.68rem; letter-spacing: 0.08em; color: #8A8F98; }
+.pf-nav { display: flex; flex-direction: column; gap: 2px; }
+.pf-nav a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; color: #4B4F58; text-decoration: none; font-size: 0.92rem; font-weight: 550; }
+.pf-nav a:hover { background: #F6F7F9; }
+.pf-nav a.active { background: #EEF1FF; color: #15181E; font-weight: 650; }
+.pf-nav-icon { width: 18px; text-align: center; opacity: 0.8; font-size: 0.95rem; }
+.pf-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid #E7E9EC; font-size: 0.82rem; }
+.pf-foot-role { font-weight: 650; display: flex; align-items: center; gap: 6px; }
+.pf-badge { font-size: 0.65rem; background: #FFE8D6; color: #B3540A; padding: 1px 7px; border-radius: 999px; font-weight: 700; }
+.pf-foot-email { color: #8A8F98; margin-top: 2px; word-break: break-all; }
+.pf-foot-exit { display: inline-block; margin-top: 10px; color: #4B4F58; font-size: 0.82rem; }
+
+.pf-content { margin-left: 240px; flex: 1; padding: 36px 44px 60px; max-width: 1400px; }
+.pf-h1 { font-size: 1.7rem; font-weight: 750; margin: 0 0 4px; letter-spacing: -0.01em; }
+.pf-sub { color: #6B7078; font-size: 0.92rem; margin: 0 0 24px; }
+.pf-sub strong { color: #15181E; }
+
+.pf-pills { display: flex; gap: 8px; margin-bottom: 22px; }
+.pf-pill { border: 1px solid #DFE2E6; background: #fff; color: #4B4F58; padding: 8px 18px; border-radius: 10px; font-size: 0.88rem; font-weight: 600; }
+.pf-pill.on { background: #15181E; border-color: #15181E; color: #fff; }
+
+.pf-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+.pf-stat { background: #fff; border: 1px solid #E7E9EC; border-radius: 14px; padding: 20px; }
+.pf-stat .num { font-size: 1.7rem; font-weight: 750; letter-spacing: -0.01em; }
+.pf-stat .num.neg { color: #C0392B; }
+.pf-stat .lbl { color: #8A8F98; font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 4px; font-weight: 650; }
+
+.pf-card { background: #fff; border: 1px solid #E7E9EC; border-radius: 14px; padding: 22px; margin-bottom: 18px; }
+.pf-card h2 { font-size: 1.05rem; font-weight: 700; margin: 0 0 14px; }
+.pf-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.pf-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.pf-table th { text-align: left; color: #8A8F98; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 650; padding: 8px 10px; border-bottom: 1px solid #EEF0F2; }
+.pf-table td { padding: 11px 10px; border-bottom: 1px solid #F3F4F6; }
+.pf-table tr:last-child td { border-bottom: none; }
+.pf-status { font-size: 0.72rem; font-weight: 700; padding: 3px 11px; border-radius: 999px; text-transform: capitalize; }
+.pf-status.active { background: #E3F8EC; color: #1B7A4A; }
+.pf-status.past_due, .pf-status.pending { background: #FFF4DB; color: #966000; }
+.pf-status.canceled, .pf-status.free { background: #F1F2F4; color: #6B7078; }
+.pf-margin-pos { color: #1B7A4A; font-weight: 650; }
+.pf-margin-neg { color: #C0392B; font-weight: 650; }
+.pf-link { color: #0A66C2; font-weight: 600; font-size: 0.86rem; text-decoration: none; }
+
+.pf-tabs { display: flex; gap: 22px; border-bottom: 1px solid #E7E9EC; margin-bottom: 20px; }
+.pf-tab { background: none; border: 0; padding: 10px 0; font-size: 0.92rem; color: #8A8F98; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.pf-tab.on { color: #15181E; border-bottom-color: #15181E; }
+.pf-tag-ok { font-size: 0.72rem; font-weight: 700; background: #E3F8EC; color: #1B7A4A; padding: 2px 10px; border-radius: 999px; margin-left: 8px; }
+.pf-soon { color: #8A8F98; font-size: 0.9rem; padding: 30px 0; text-align: center; }
+
+@media (max-width: 1000px) {
+  .pf-sidebar { display: none; }
+  .pf-content { margin-left: 0; padding: 24px; }
+  .pf-stats, .pf-grid-2 { grid-template-columns: 1fr; }
+}
