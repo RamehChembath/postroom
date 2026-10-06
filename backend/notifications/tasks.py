@@ -2,6 +2,7 @@ import logging
 from celery import shared_task
 from django.utils import timezone
 from content.models import Post
+from billing.usage import is_feature_enabled
 from .emails import send_post_reminder
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,8 @@ def send_due_post_reminders():
     posts = Post.objects.filter(status="approved", scheduled_at__date=today, reminder_sent_at__isnull=True)
     sent = 0
     for post in posts:
+        if not is_feature_enabled(post.workspace, "email_reminders"):
+            continue
         try:
             send_post_reminder(post)
             post.reminder_sent_at = timezone.now()

@@ -14,11 +14,12 @@ from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from rest_framework import viewsets
+from rest_framework import viewsets, status as drf_status
+from rest_framework.decorators import action
 
-from billing.models import AIUsageEvent, Subscription, PlanConfig
-from billing.plans import get_plans, _ensure_seeded
-from .serializers import PlanConfigSerializer
+from billing.models import AIUsageEvent, Subscription, PlanConfig, PlanFeature, Feature
+from billing.plans import get_plans, _ensure_seeded, default_free_plan_key
+from .serializers import PlanConfigSerializer, FeatureSerializer
 
 # Illustrative USD->INR rate for the margin estimate shown on this dashboard —
 # update to your real rate, or wire in a live FX source, before trusting the
@@ -59,11 +60,11 @@ class PlatformOverviewView(APIView):
         total_fees = Decimal(0)
         for user in User.objects.filter(is_staff=False).select_related("subscription"):
             sub = getattr(user, "subscription", None)
-            plan_key = sub.plan if sub else "free"
+            plan_key = sub.plan if sub else default_free_plan_key()
             plan = get_plans()[plan_key]
             ws_ids = list(user.workspaces.values_list("id", flat=True))
             user_cost = events.filter(workspace_id__in=ws_ids).aggregate(s=Sum("cost_usd"))["s"] or Decimal(0)
-            fees = Decimal(plan["price_monthly_inr"]) if (sub and sub.status == "active" and plan_key != "free") else Decimal(0)
+            fees = Decimal(plan["price_monthly_inr"]) if (sub and sub.status == "active" and plan["price_monthly_inr"] > 0) else Decimal(0)
             total_fees += fees
             margin = fees - (user_cost * USD_TO_INR)
             tenants.append({
@@ -96,14 +97,55 @@ class PlatformOverviewView(APIView):
 
 
 class PlanConfigViewSet(viewsets.ModelViewSet):
-    """Plan Builder: list and edit what each plan (Free/Base/Pro) actually
-    provides. Plans aren't created/deleted here — the three tiers are fixed
-    by `key` (used throughout billing logic) — only their limits/pricing are
-    editable. Takes effect immediately; no deploy needed."""
+    """Plan Builder: create, edit, and delete as many plans as you want, and
+    configure each one's feature matrix. Takes effect immediately — the next
+    AI call checks the database directly, no deploy or restart needed."""
     permission_classes = [IsAdminUser]
     serializer_class = PlanConfigSerializer
-    http_method_names = ["get", "patch", "head", "options"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
         _ensure_seeded()
-        return PlanConfig.objects.all()
+        return PlanConfig.objects.all().order_by("order")
+
+    def destroy(self, request, *args, **kwargs):
+        plan = self.get_object()
+        active_subscribers = Subscription.objects.filter(plan=plan.key, status__in=["active", "trialing", "past_due"]).count()
+        if active_subscribers:
+            return Response(
+                {"detail": f"{active_subscribers} subscriber(s) are still on this plan. Move them to another plan first."},
+                status=drf_status.HTTP_409_CONFLICT,
+            )
+        if plan.is_default_free:
+            return Response({"detail": "Can't delete the default free-fallback plan. Mark a different plan as the default first."},
+                             status=drf_status.HTTP_409_CONFLICT)
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=["patch"], url_path="features")
+    def set_features(self, request, pk=None):
+        """Bulk-save a plan's feature matrix: [{feature_id, enabled, quantity, tier}, ...]."""
+        plan = self.get_object()
+        for row in request.data:
+            feature_id = row.get("feature_id") or (row.get("feature") or {}).get("id")
+            if not feature_id:
+                continue
+            pf, _ = PlanFeature.objects.get_or_create(plan=plan, feature_id=feature_id)
+            if "enabled" in row:
+                pf.enabled = bool(row["enabled"])
+            if "quantity" in row:
+                pf.quantity = row["quantity"]
+            if "tier" in row:
+                pf.tier = row["tier"] or ""
+            pf.save()
+        return Response(self.get_serializer(plan).data)
+
+
+class FeatureCatalogViewSet(viewsets.ReadOnlyModelViewSet):
+    """The global feature catalog (read-only here — edited via Django admin
+    at /admin/billing/feature/ if you need to add a brand-new capability)."""
+    permission_classes = [IsAdminUser]
+    serializer_class = FeatureSerializer
+
+    def get_queryset(self):
+        _ensure_seeded()
+        return Feature.objects.all().order_by("order")

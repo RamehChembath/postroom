@@ -68,12 +68,14 @@ def tone_analysis_prompt(posts) -> tuple[str, str]:
     return system, user
 
 
-def topic_suggestion_prompt(brand, top_performers) -> tuple[str, str]:
+def topic_suggestion_prompt(brand, top_performers, horizon: str = "") -> tuple[str, str]:
     history = ("What has worked before, best first:\n" + "\n".join(f'- "{p.title or p.text[:60]}" — {p.likes} likes' for p in top_performers)) \
         if top_performers else "(No performance history yet — recommend based on general best practice for this audience and industry.)"
+    horizon_map = {"1_month": "the next month", "3_months": "the next 3 months, with a loose week-by-week arc"}
+    horizon_instruction = f" Plan these across {horizon_map.get(horizon, 'right now, no specific time horizon')}." if horizon in horizon_map else ""
     system = ("You are a LinkedIn content strategist. Recommend specific, concrete post topics and angles "
-              "likely to perform well for this exact audience and industry — not generic advice. "
-              "Return ONLY JSON, no markdown fences.")
+              "likely to perform well for this exact audience and industry — not generic advice."
+              f"{horizon_instruction} Return ONLY JSON, no markdown fences.")
     user = (f"<audience_and_industry>\n{strategy_block(brand)}\n</audience_and_industry>\n\n"
             f"<voice_profile>\n{voice_block(brand)}\n</voice_profile>\n\n{history}\n\n"
             "Suggest 5 topic ideas.\n"
@@ -81,13 +83,25 @@ def topic_suggestion_prompt(brand, top_performers) -> tuple[str, str]:
     return system, user
 
 
-def calendar_prompt(brand, plan, blocked_dates: list[str]) -> tuple[str, str]:
+def calendar_prompt(brand, plan, blocked_dates: list[str], smart_scheduling: bool = False) -> tuple[str, str]:
     blocked = f"Do not schedule on these dates (holidays/leave): {', '.join(blocked_dates)}." if blocked_dates else "No dates are blocked."
+    if smart_scheduling:
+        scheduling_instruction = (
+            "Build a posting calendar with REAL day-quality reasoning, not just even spacing: weigh which "
+            "weekday/time this audience and industry is most likely active on LinkedIn (generally "
+            "Tuesday-Thursday mid-morning skews higher-engagement, but reason about THIS audience specifically "
+            "rather than defaulting to that), actively avoid weekends and known low-engagement slots, and for "
+            "each item explain in date_rationale WHY that specific day/time was chosen for that specific post."
+        )
+    else:
+        scheduling_instruction = (
+            "Spread the posting dates evenly and sensibly across the window. Don't reason about which days get "
+            "more engagement — just avoid blocked dates and weekends. Keep date_rationale brief and generic."
+        )
     system = ("You are a LinkedIn content strategist and scheduler. Build a posting calendar: specific titles, "
-              "a one-line angle for each, and a recommended posting date and time for each — spread sensibly "
-              "across the window, generally favoring Tuesday-Thursday mid-morning as higher-engagement slots "
-              "(note this is general best practice, not live platform data), and never on a blocked date or a weekend "
-              "unless the window leaves no other choice. Return ONLY JSON, no markdown fences.")
+              "a one-line angle for each, and a recommended posting date and time for each. "
+              f"{scheduling_instruction} Never schedule on a blocked date or a weekend unless the window leaves "
+              "no other choice. Return ONLY JSON, no markdown fences.")
     user = (f"<audience_and_industry>\n{strategy_block(brand)}\n</audience_and_industry>\n\n"
             f"<voice_profile>\n{voice_block(brand)}\n</voice_profile>\n\n"
             f"Subject/brief: {plan.subject}\n{plan.brief}\n\n"

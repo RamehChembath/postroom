@@ -5,7 +5,7 @@ import logging
 from datetime import timezone as dt_timezone
 from django.utils import timezone
 from .models import Subscription
-from .plans import plan_for_price_id
+from .plans import plan_for_price_id, default_free_plan_key
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def handle_event(event: dict):
         customer_id = data.get("customer")
         sub = Subscription.objects.filter(stripe_customer_id=customer_id).first()
         if sub:
-            sub.plan = "free"
+            sub.plan = default_free_plan_key()
             sub.status = "active"
             sub.stripe_subscription_id = ""
             sub.cancel_at_period_end = False

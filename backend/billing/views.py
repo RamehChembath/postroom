@@ -31,11 +31,20 @@ class UsageSummaryView(APIView):
 class CreateCheckoutSessionView(APIView):
     def post(self, request):
         plan_key = request.data.get("plan")
-        if plan_key not in ("base", "pro"):
-            return Response({"detail": "plan must be 'base' or 'pro'."}, status=status.HTTP_400_BAD_REQUEST)
-        price_id = get_plans()[plan_key]["stripe_price_id"]
+        plans = get_plans()
+        if plan_key not in plans:
+            return Response({"detail": f"No such plan: {plan_key}."}, status=status.HTTP_400_BAD_REQUEST)
+        plan = plans[plan_key]
+        if plan["price_monthly_inr"] == 0:
+            # A free-equivalent plan needs no Stripe checkout — switch instantly.
+            sub = get_or_create_subscription(request.user)
+            sub.plan = plan_key
+            sub.status = "active"
+            sub.save(update_fields=["plan", "status"])
+            return Response({"switched": True, "plan": plan_key})
+        price_id = plan["stripe_price_id"]
         if not price_id:
-            return Response({"detail": "Billing isn't configured on this server yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            return Response({"detail": f'The "{plan["name"]}" plan has no Stripe price configured yet (set it in Settings -> Plan Builder).'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         sub = get_or_create_subscription(request.user)
         try:
             customer_id = stripe_client.get_or_create_customer(request.user, sub)

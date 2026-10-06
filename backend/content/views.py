@@ -81,6 +81,14 @@ class PostViewSet(viewsets.ModelViewSet):
     def get_serializer_context(self):
         return {"request": self.request}
 
+    def create(self, request, *args, **kwargs):
+        from billing.usage import check_feature_allowed
+        try:
+            check_feature_allowed(get_workspace(request), "manual_post_logging")
+        except UsageLimitExceeded as e:
+            return error_response(e)
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         serializer.save(workspace=get_workspace(self.request))
 

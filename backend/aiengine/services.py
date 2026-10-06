@@ -11,7 +11,7 @@ from django.core.files.base import ContentFile
 
 from . import prompts, providers
 from django.conf import settings
-from billing.usage import check_ai_allowed, record_ai_cost
+from billing.usage import check_ai_allowed, check_feature_allowed, is_feature_enabled, feature_tier_value, record_ai_cost
 
 
 def _text_model():
@@ -54,7 +54,7 @@ def analyze_tone(workspace):
     posted = list(Post.objects.filter(workspace=workspace, status="posted").exclude(text="").order_by("-posted_at")[:15])
     if not posted:
         raise providers.AIError("Mark at least one post as posted first.")
-    check_ai_allowed(workspace)
+    check_feature_allowed(workspace, "tone_analysis")
     system, user_msg = prompts.tone_analysis_prompt(posted)
     out, cost = providers.text_json(system, user_msg, max_tokens=900)
     record_ai_cost(workspace, cost, purpose="tone_analysis", model=_text_model())
@@ -71,9 +71,10 @@ def analyze_tone(workspace):
 def suggest_topics(workspace):
     from content.models import Post
     brand = workspace.brand_profile
-    check_ai_allowed(workspace)
+    check_feature_allowed(workspace, "topic_suggestions")
+    horizon = feature_tier_value(workspace, "future_planning_horizon")
     top = list(Post.objects.filter(workspace=workspace, status="posted").order_by("-likes")[:3])
-    system, user_msg = prompts.topic_suggestion_prompt(brand, top)
+    system, user_msg = prompts.topic_suggestion_prompt(brand, top, horizon=horizon)
     out, cost = providers.text_json(system, user_msg, max_tokens=900)
     record_ai_cost(workspace, cost, purpose="topic_suggestions", model=_text_model())
     return out.get("topics", [])
@@ -84,11 +85,12 @@ def suggest_topics(workspace):
 def generate_calendar(plan):
     workspace = plan.workspace
     brand = workspace.brand_profile
-    check_ai_allowed(workspace)
+    check_feature_allowed(workspace, "calendar_builder")
+    smart_scheduling = is_feature_enabled(workspace, "smart_day_scheduling")
     blocked = list(workspace.blocked_dates.filter(date__range=(plan.start_date, plan.end_date)).values_list("date", flat=True))
-    system, user_msg = prompts.calendar_prompt(brand, plan, [d.isoformat() for d in blocked])
+    system, user_msg = prompts.calendar_prompt(brand, plan, [d.isoformat() for d in blocked], smart_scheduling=smart_scheduling)
     out, cost = providers.text_json(system, user_msg, max_tokens=2000)
-    record_ai_cost(workspace, cost, purpose="calendar_generation", model=_text_model())
+    record_ai_cost(workspace, cost, purpose="calendar_builder", model=_text_model())
 
     from content.models import PlannedItem
     plan.items.all().delete()
@@ -115,10 +117,10 @@ def generate_draft_for_item(item):
     from content.models import Post
     workspace = item.plan.workspace
     brand = workspace.brand_profile
-    check_ai_allowed(workspace)
+    check_feature_allowed(workspace, "draft_generation")
     system, user_msg = prompts.draft_prompt(brand, item.item_type, item.title, item.angle)
     out, cost = providers.text_json(system, user_msg, max_tokens=4000)
-    record_ai_cost(workspace, cost, purpose="draft", model=_text_model())
+    record_ai_cost(workspace, cost, purpose="draft_generation", model=_text_model())
 
     post, _ = Post.objects.update_or_create(
         planned_item=item,
@@ -158,10 +160,10 @@ def predict_potential(post):
 def suggest_reply(comment):
     workspace = comment.post.workspace
     brand = workspace.brand_profile
-    check_ai_allowed(workspace)
+    check_feature_allowed(workspace, "reply_suggestions")
     system, user_msg = prompts.reply_prompt(brand, comment.post, comment)
     out, cost = providers.text_json(system, user_msg, max_tokens=400)
-    record_ai_cost(workspace, cost, purpose="reply_suggestion", model=_text_model())
+    record_ai_cost(workspace, cost, purpose="reply_suggestions", model=_text_model())
     comment.reply = out.get("reply", "")
     comment.reply_generated_at = timezone.now()
     comment.save(update_fields=["reply", "reply_generated_at"])
@@ -183,7 +185,7 @@ def suggest_next_step(post):
 
 def generate_post_image(post, brief: str):
     workspace = post.workspace
-    check_ai_allowed(workspace)
+    check_feature_allowed(workspace, "image_generation")
     style_note = " Clean, professional, editorial style suited to LinkedIn; no embedded text, no logos, no real identifiable people."
     image_bytes, cost = providers.generate_image_bytes(brief + style_note)
     record_ai_cost(workspace, cost, purpose="image_generation", model=settings.OPENAI_IMAGE_MODEL)
@@ -203,8 +205,8 @@ def analyze_performance(workspace):
     goal = workspace.goals.filter(is_active=True).first()
     goal_summary = f"{goal.title}: target {goal.target_value} {goal.metric} by {goal.end_date}" if goal else "(no active goal)"
     brand = workspace.brand_profile
-    check_ai_allowed(workspace)
+    check_feature_allowed(workspace, "growth_analysis")
     system, user_msg = prompts.performance_analysis_prompt(brand, summary, goal_summary)
     out, cost = providers.text_json(system, user_msg, max_tokens=700)
-    record_ai_cost(workspace, cost, purpose="performance_analysis", model=_text_model())
+    record_ai_cost(workspace, cost, purpose="growth_analysis", model=_text_model())
     return out

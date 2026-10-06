@@ -166,3 +166,10 @@ textarea { resize: vertical; }
   .pf-content { margin-left: 0; padding: 24px; }
   .pf-stats, .pf-grid-2 { grid-template-columns: 1fr; }
 }
+
+.pf-feature-group { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: #8A8F98; font-weight: 700; margin: 0 0 8px; padding-top: 10px; border-top: 1px solid #EEF0F2; }
+.pf-feature-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid #F6F7F9; }
+.pf-feature-row:last-child { border-bottom: none; }
+.pf-feature-info { flex: 1; min-width: 0; }
+.pf-feature-value { display: flex; align-items: center; gap: 8px; flex: none; }
+.pf-feature-value select { padding: 7px 9px; border-radius: 8px; border: 1px solid #DFE2E6; background: #fff; font-size: 0.86rem; }

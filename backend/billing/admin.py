@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from unfold.admin import ModelAdmin
-from .models import Subscription, WorkspaceUsage, AIUsageEvent, PlanConfig
+from unfold.admin import ModelAdmin, TabularInline
+from .models import Subscription, WorkspaceUsage, AIUsageEvent, PlanConfig, Feature, PlanFeature
 
 
 @admin.register(Subscription)
@@ -65,7 +65,20 @@ class AIUsageEventAdmin(ModelAdmin):
     date_hierarchy = "created_at"
 
 
+class PlanFeatureInline(TabularInline):
+    model = PlanFeature
+    extra = 0
+    fields = ["feature", "enabled", "quantity", "tier"]
+
+
 @admin.register(PlanConfig)
 class PlanConfigAdmin(ModelAdmin):
-    list_display = ["name", "key", "price_monthly_inr", "max_workspaces", "ai_enabled", "ai_budget_usd_per_workspace"]
-    list_editable = ["price_monthly_inr", "max_workspaces", "ai_enabled", "ai_budget_usd_per_workspace"]
+    list_display = ["name", "key", "price_monthly_inr", "max_workspaces", "ai_budget_usd_per_workspace", "is_default_free"]
+    list_editable = ["price_monthly_inr", "max_workspaces", "ai_budget_usd_per_workspace"]
+    inlines = [PlanFeatureInline]
+
+
+@admin.register(Feature)
+class FeatureAdmin(ModelAdmin):
+    list_display = ["name", "key", "category", "value_kind", "unit"]
+    list_filter = ["category", "value_kind"]

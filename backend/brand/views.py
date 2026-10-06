@@ -149,3 +149,14 @@ class BlockedDateViewSet(WorkspaceScopedViewSet):
 class GoalViewSet(WorkspaceScopedViewSet):
     model = Goal
     serializer_class = GoalSerializer
+
+    def create(self, request, *args, **kwargs):
+        from billing.usage import check_feature_allowed
+        try:
+            check_feature_allowed(get_workspace(request), "goals_tracking")
+        except UsageLimitExceeded as e:
+            return error_response(e)
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(workspace=get_workspace(self.request))
