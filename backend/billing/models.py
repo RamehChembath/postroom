@@ -102,6 +102,18 @@ class Feature(models.Model):
     class Meta:
         ordering = ["order"]
 
+    def save(self, *args, **kwargs):
+        if not self.key:
+            from django.utils.text import slugify
+            base = slugify(self.name)[:36] or "feature"
+            key = base
+            n = 2
+            while Feature.objects.filter(key=key).exclude(pk=self.pk).exists():
+                key = f"{base}-{n}"[:40]
+                n += 1
+            self.key = key
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
 

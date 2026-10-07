@@ -140,12 +140,20 @@ class PlanConfigViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(plan).data)
 
 
-class FeatureCatalogViewSet(viewsets.ReadOnlyModelViewSet):
-    """The global feature catalog (read-only here — edited via Django admin
-    at /admin/billing/feature/ if you need to add a brand-new capability)."""
+class FeatureCatalogViewSet(viewsets.ModelViewSet):
+    """The global feature catalog — add, edit, or delete capabilities here,
+    no Django admin needed. Every plan picks up a new feature automatically
+    (at off/zero) the next time its matrix is loaded; deleting one removes it
+    from every plan's matrix but leaves past cost/usage history untouched."""
     permission_classes = [IsAdminUser]
     serializer_class = FeatureSerializer
 
     def get_queryset(self):
         _ensure_seeded()
         return Feature.objects.all().order_by("order")
+
+    def perform_create(self, serializer):
+        if serializer.validated_data.get("value_kind") == "tier" and not serializer.validated_data.get("tier_options"):
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"tier_options": "A 'tier' feature needs at least one option, e.g. [\"none\",\"basic\",\"optimal\"]."})
+        serializer.save()

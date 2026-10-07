@@ -5,6 +5,7 @@ import { api } from "../../../../lib/api";
 const TABS = [
   { key: "ai", label: "AI Provider", built: true },
   { key: "plans", label: "Plan Builder", built: true },
+  { key: "features", label: "Feature Catalog", built: true },
   { key: "email", label: "Email (SMTP)", built: false },
   { key: "payments", label: "Payments", built: false },
   { key: "branding", label: "Branding", built: false },
@@ -289,6 +290,142 @@ function PlanBuilderTab() {
   );
 }
 
+const VALUE_KINDS = [
+  { key: "boolean", label: "On / off" },
+  { key: "quantity", label: "Quantity per month" },
+  { key: "tier", label: "Quality tier" },
+];
+
+function FeatureEditor({ feature, onSaved, onDeleted, onCancel }) {
+  const isNew = !feature.id;
+  const [form, setForm] = useState({
+    name: feature.name || "", description: feature.description || "",
+    category: feature.category || "ai", value_kind: feature.value_kind || "boolean",
+    unit: feature.unit || "", tier_options: (feature.tier_options || []).join(", "),
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  function set(field, value) { setForm((f) => ({ ...f, [field]: value })); }
+
+  async function save() {
+    setBusy(true); setError(null);
+    const body = {
+      ...form,
+      tier_options: form.value_kind === "tier" ? form.tier_options.split(",").map((s) => s.trim()).filter(Boolean) : [],
+    };
+    try {
+      const saved = isNew
+        ? await api("/platform/features/", { method: "POST", body })
+        : await api(`/platform/features/${feature.id}/`, { method: "PATCH", body });
+      onSaved(saved);
+    } catch (e) {
+      setError(e.message || "Couldn't save this feature.");
+    }
+    setBusy(false);
+  }
+
+  async function doDelete() {
+    try {
+      await api(`/platform/features/${feature.id}/`, { method: "DELETE" });
+      onDeleted(feature.id);
+    } catch (e) {
+      setError(e.message || "Couldn't delete this feature.");
+    }
+  }
+
+  return (
+    <div className="pf-card" style={isNew ? { borderStyle: "dashed" } : undefined}>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ margin: 0 }}>{isNew ? "New feature" : form.name}{!isNew && <span className="hint" style={{ fontWeight: 400 }}> ({feature.key})</span>}</h2>
+        {!isNew && !confirmingDelete && <button className="btn" onClick={() => setConfirmingDelete(true)}>Delete</button>}
+        {confirmingDelete && (
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn" style={{ borderColor: "#C0392B", color: "#C0392B" }} onClick={doDelete}>Confirm delete</button>
+            <button className="btn" onClick={() => setConfirmingDelete(false)}>Cancel</button>
+          </div>
+        )}
+      </div>
+      {error && <p className="error">{error}</p>}
+
+      <div className="row" style={{ gap: 14 }}>
+        <div style={{ flex: 1, minWidth: 160 }}><label>Name</label><input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Competitor tracking" /></div>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <label>Category</label>
+          <select value={form.category} onChange={(e) => set("category", e.target.value)}>
+            <option value="ai">AI-powered</option><option value="non_ai">Non-AI</option>
+          </select>
+        </div>
+      </div>
+      <label>Description (shown to you in the Plan Builder, not to customers)</label>
+      <input value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="What this feature actually does" />
+
+      <div className="row" style={{ gap: 14 }}>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <label>Value type</label>
+          <select value={form.value_kind} onChange={(e) => set("value_kind", e.target.value)} disabled={!isNew}>
+            {VALUE_KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
+          </select>
+          {!isNew && <p className="hint">Can't change the value type after creation — delete and recreate if you need a different kind.</p>}
+        </div>
+        {form.value_kind === "quantity" && (
+          <div style={{ flex: 1, minWidth: 160 }}><label>Unit label</label><input value={form.unit} onChange={(e) => set("unit", e.target.value)} placeholder="e.g. posts/month" /></div>
+        )}
+        {form.value_kind === "tier" && (
+          <div style={{ flex: 1, minWidth: 160 }}><label>Tier options (comma-separated)</label><input value={form.tier_options} onChange={(e) => set("tier_options", e.target.value)} placeholder="none, basic, optimal" /></div>
+        )}
+      </div>
+
+      <div className="row" style={{ marginTop: 10 }}>
+        <button className="btn primary" onClick={save} disabled={busy || !form.name.trim()}>{busy ? <span className="spin" /> : isNew ? "Create feature" : "Save changes"}</button>
+        {isNew && <button className="btn" onClick={onCancel}>Cancel</button>}
+      </div>
+    </div>
+  );
+}
+
+function FeatureCatalogTab() {
+  const [features, setFeatures] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+
+  async function load() {
+    const data = await api("/platform/features/");
+    setFeatures((data.results || data).sort((a, b) => a.order - b.order));
+  }
+  useEffect(() => { load(); }, []);
+
+  if (!features) return <p className="hint">Loading...</p>;
+
+  return (
+    <>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <p className="hint" style={{ margin: 0 }}>
+          Add a brand-new capability here and it appears — off, at zero — in every plan's feature matrix automatically. Configure it per-plan from Plan Builder.
+        </p>
+        {!showNew && <button className="btn primary" onClick={() => setShowNew(true)}>+ New feature</button>}
+      </div>
+
+      {showNew && (
+        <FeatureEditor
+          feature={{}}
+          onCancel={() => setShowNew(false)}
+          onSaved={(saved) => { setFeatures((fs) => [...fs, saved]); setShowNew(false); }}
+        />
+      )}
+
+      {features.map((f) => (
+        <FeatureEditor
+          key={f.id}
+          feature={f}
+          onSaved={(updated) => setFeatures((fs) => fs.map((x) => (x.id === updated.id ? updated : x)))}
+          onDeleted={(id) => setFeatures((fs) => fs.filter((x) => x.id !== id))}
+        />
+      ))}
+    </>
+  );
+}
+
 export default function PlatformSettingsPage() {
   const [tab, setTab] = useState("ai");
   const active = TABS.find((t) => t.key === tab);
@@ -306,6 +443,7 @@ export default function PlatformSettingsPage() {
 
       {tab === "ai" && <AIProviderTab />}
       {tab === "plans" && <PlanBuilderTab />}
+      {tab === "features" && <FeatureCatalogTab />}
       {!active.built && (
         <div className="pf-card"><p className="pf-soon">{active.label} isn't wired up yet — this tab is a placeholder for when it is.</p></div>
       )}

@@ -6,6 +6,7 @@ class FeatureSerializer(serializers.ModelSerializer):
     class Meta:
         model = Feature
         fields = ["id", "key", "name", "description", "category", "value_kind", "unit", "tier_options", "order"]
+        read_only_fields = ["key"]  # auto-slugged from name on create, fixed after that — like PlanConfig.key
 
 
 class PlanFeatureSerializer(serializers.ModelSerializer):
